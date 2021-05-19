@@ -34,7 +34,7 @@ const skipThirdPartyRequests = async (opt) => {
  */
 const enableLogging = (opt) => {
   const { page, options, route, onError, sourcemapStore } = opt;
-  page.on("console", (msg) => {
+ /* page.on("console", (msg) => {
     const text = msg.text();
     if (text === "JSHandle@object") {
       Promise.all(msg.args().map(objectToJson)).then((args) =>
@@ -47,7 +47,7 @@ const enableLogging = (opt) => {
     } else {
       console.log(`️️️💬  console.log at ${route}:`, text);
     }
-  });
+  });*/
   page.on("error", (msg) => {
     console.log(`🔥  error at ${route}:`, msg);
     onError && onError();
@@ -163,6 +163,7 @@ const crawl = async (opt) => {
   };
   process.on("unhandledRejection", onUnhandledRejection);
 
+  const skipRoutes = [];
   const queue = _();
   let enqued = 0;
   let processed = 0;
@@ -267,11 +268,12 @@ const crawl = async (opt) => {
         shuttingDown = true;
       }
     } else {
+      skipRoutes.push(route);
       // this message creates a lot of noise
       // console.log(`🚧  skipping (${processed + 1}/${enqued}) ${route}`);
       // TEMP Work around "Cannot write to stream after nil" issue by including an `await` in this `else` branch
       await Promise.resolve();
-      console.log(`🚧  skipping (${processed + 1}/${enqued}) ${route}`);
+      // console.log(`🚧  skipping (${processed + 1}/${enqued}) ${route}`);
     }
     processed++;
     if (enqued === processed) {
@@ -294,7 +296,7 @@ const crawl = async (opt) => {
         process.removeListener("unhandledRejection", onUnhandledRejection);
         await browser.close();
         onEnd && onEnd();
-        if (shuttingDown) return reject("");
+        if (shuttingDown) return reject(skipRoutes);
         resolve();
       });
   });
