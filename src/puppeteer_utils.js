@@ -164,6 +164,7 @@ const crawl = async (opt) => {
   process.on("unhandledRejection", onUnhandledRejection);
 
   const skipRoutes = [];
+  const crawledRoutes = [];
   const queue = _();
   let enqued = 0;
   let processed = 0;
@@ -260,6 +261,7 @@ const crawl = async (opt) => {
         }
         afterFetch && (await afterFetch({ page, route, browser, addToQueue }));
         await page.close();
+        crawledRoutes.push(route)
         console.log(`✅  crawled ${processed + 1} out of ${enqued} (${route})`);
       } catch (e) {
         if (!shuttingDown) {
@@ -296,7 +298,7 @@ const crawl = async (opt) => {
         process.removeListener("unhandledRejection", onUnhandledRejection);
         await browser.close();
         onEnd && onEnd();
-        if (shuttingDown) return reject(skipRoutes);
+        if (shuttingDown) return reject({skipRoutes, crawledRoutes});
         resolve();
       });
   });
