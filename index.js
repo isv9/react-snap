@@ -598,7 +598,6 @@ const saveAsHtml = async ({ page, filePath, options, route, fs }) => {
   let content = await page.content();
   content = content.replace(/react-snap-onload/g, "onload");
   const title = await page.title();
-  return;
   const minifiedContent = options.minifyHtml
     ? minify(content, options.minifyHtml)
     : content;
@@ -607,12 +606,12 @@ const saveAsHtml = async ({ page, filePath, options, route, fs }) => {
     if (route.endsWith("/404.html") && !title.includes("404"))
       console.log('⚠️  warning: 404 page title does not contain "404" string');
     mkdirp.sync(path.dirname(filePath));
-    // fs.writeFileSync(filePath, minifiedContent);
+    fs.writeFileSync(filePath, minifiedContent);
   } else {
     if (title.includes("404"))
       console.log(`⚠️  warning: page not found ${route}`);
     mkdirp.sync(filePath);
-    // fs.writeFileSync(path.join(filePath, "index.html"), minifiedContent);
+    fs.writeFileSync(path.join(filePath, "index.html"), minifiedContent);
   }
 };
 
@@ -674,15 +673,15 @@ const run = async (userOptions, { fs } = { fs: nativeFs }) => {
     return Promise.reject("");
   }
 
-  // fs.createReadStream(path.join(sourceDir, "index.html")).pipe(
-  //   fs.createWriteStream(path.join(sourceDir, "200.html"))
-  // );
+  fs.createReadStream(path.join(sourceDir, "index.html")).pipe(
+    fs.createWriteStream(path.join(sourceDir, "200.html"))
+  );
 
   if (destinationDir !== sourceDir && options.saveAs === "html") {
-    // mkdirp.sync(destinationDir);
-    // fs.createReadStream(path.join(sourceDir, "index.html")).pipe(
-    //   fs.createWriteStream(path.join(destinationDir, "200.html"))
-    // );
+    mkdirp.sync(destinationDir);
+    fs.createReadStream(path.join(sourceDir, "index.html")).pipe(
+      fs.createWriteStream(path.join(destinationDir, "200.html"))
+    );
   }
 
   const server = options.externalServer ? null : startServer(options);
