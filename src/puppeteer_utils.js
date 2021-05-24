@@ -44,7 +44,7 @@ const enableLogging = (opt) => {
       Promise.all(msg.args().map(errorToString)).then((args) =>
         console.log(`💬  console.log at ${route}:`, ...args)
       );
-    } else {
+    } else if (!text.includes('.woff2')) {
       console.log(`️️️💬  console.log at ${route}:`, text);
     }
   });
