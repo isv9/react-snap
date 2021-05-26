@@ -20,6 +20,7 @@ const defaultOptions = {
   concurrency: 4,
   include: ["/"],
   userAgent: "ReactSnap",
+  debug: false,
   // 4 params below will be refactored to one: `puppeteer: {}`
   // https://github.com/stereobooster/react-snap/issues/120
   headless: true,
@@ -643,10 +644,17 @@ const saveAsJpeg = ({ page, filePath, options, route }) => {
 
 const run = async (userOptions, { fs } = { fs: nativeFs }) => {
   let options;
+  if(userOptions?.debug){
+    console.time('ReactSnap: defaults options time')
+  }
   try {
     options = defaults(userOptions);
   } catch (e) {
     return Promise.reject(e.message);
+  } finally {
+    if(userOptions?.debug){
+      console.timeEnd('ReactSnap: defaults options time')
+    }
   }
 
   const sourceDir = path.normalize(`${process.cwd()}/${options.source}`);
@@ -662,6 +670,9 @@ const run = async (userOptions, { fs } = { fs: nativeFs }) => {
     return server;
   };
 
+  if(options.debug){
+    console.time('ReactSnap: checking exist file')
+  }
   if (
     destinationDir === sourceDir &&
     options.saveAs === "html" &&
@@ -670,6 +681,9 @@ const run = async (userOptions, { fs } = { fs: nativeFs }) => {
     console.log(
       `🔥  200.html is present in the sourceDir (${sourceDir}). You can not run react-snap twice - this will break the build`
     );
+    if(options.debug){
+      console.timeEnd('ReactSnap: checking exist file')
+    }
     return Promise.reject("");
   }
 
@@ -682,6 +696,10 @@ const run = async (userOptions, { fs } = { fs: nativeFs }) => {
     fs.createReadStream(path.join(sourceDir, "index.html")).pipe(
       fs.createWriteStream(path.join(destinationDir, "200.html"))
     );
+  }
+
+  if(options.debug){
+    console.timeEnd('ReactSnap: checking exist file')
   }
 
   const server = options.externalServer ? null : startServer(options);
@@ -698,176 +716,204 @@ const run = async (userOptions, { fs } = { fs: nativeFs }) => {
     publicPath,
     sourceDir,
     beforeFetch: async ({ page, route }) => {
-      const { preloadImages, cacheAjaxRequests, preconnectThirdParty } =
-        options;
-      if (
-        preloadImages ||
-        cacheAjaxRequests ||
-        preconnectThirdParty ||
-        http2PushManifest
-      ) {
-        const { ajaxCache: ac, http2PushManifestItems: hpm } = preloadResources(
-          {
-            page,
-            basePath,
-            preloadImages,
-            cacheAjaxRequests,
-            preconnectThirdParty,
-            http2PushManifest,
-            ignoreForPreload: options.ignoreForPreload,
-          }
-        );
-        ajaxCache[route] = ac;
-        http2PushManifestItems[route] = hpm;
+      if(options.debug){
+        console.time(`ReactSnap: beforeFetch ${route}`)
+      }
+      try{
+        const { preloadImages, cacheAjaxRequests, preconnectThirdParty } =
+            options;
+        if (
+            preloadImages ||
+            cacheAjaxRequests ||
+            preconnectThirdParty ||
+            http2PushManifest
+        ) {
+          const { ajaxCache: ac, http2PushManifestItems: hpm } = preloadResources(
+              {
+                page,
+                basePath,
+                preloadImages,
+                cacheAjaxRequests,
+                preconnectThirdParty,
+                http2PushManifest,
+                ignoreForPreload: options.ignoreForPreload,
+              }
+          );
+          ajaxCache[route] = ac;
+          http2PushManifestItems[route] = hpm;
+        }
+      } finally {
+        if(options.debug){
+          console.timeEnd(`ReactSnap: beforeFetch ${route}`)
+        }
       }
     },
     afterFetch: async ({ page, route, browser, addToQueue }) => {
-      const pageUrl = `${basePath}${route}`;
-      if (options.removeStyleTags) await removeStyleTags({ page });
-      if (options.removeScriptTags) await removeScriptTags({ page });
-      if (options.removeBlobs) await removeBlobs({ page });
-      if (options.inlineCss) {
-        const { cssFiles } = await inlineCss({
-          page,
-          pageUrl,
-          options,
-          basePath,
-          browser,
-        });
+      if(options.debug){
+        console.time(`ReactSnap: afterFetch ${route}`)
+      }
+      try{
+        const pageUrl = `${basePath}${route}`;
+        if (options.removeStyleTags) await removeStyleTags({ page });
+        if (options.removeScriptTags) await removeScriptTags({ page });
+        if (options.removeBlobs) await removeBlobs({ page });
+        if (options.inlineCss) {
+          const { cssFiles } = await inlineCss({
+            page,
+            pageUrl,
+            options,
+            basePath,
+            browser,
+          });
 
-        if (http2PushManifest) {
-          const filesToRemove = cssFiles
-            .filter((file) => file.startsWith(basePath))
-            .map((file) => file.replace(basePath, ""));
+          if (http2PushManifest) {
+            const filesToRemove = cssFiles
+                .filter((file) => file.startsWith(basePath))
+                .map((file) => file.replace(basePath, ""));
 
-          for (let i = http2PushManifestItems[route].length - 1; i >= 0; i--) {
-            const x = http2PushManifestItems[route][i];
-            filesToRemove.forEach((fileToRemove) => {
-              if (x.link.startsWith(fileToRemove)) {
-                http2PushManifestItems[route].splice(i, 1);
-              }
-            });
+            for (let i = http2PushManifestItems[route].length - 1; i >= 0; i--) {
+              const x = http2PushManifestItems[route][i];
+              filesToRemove.forEach((fileToRemove) => {
+                if (x.link.startsWith(fileToRemove)) {
+                  http2PushManifestItems[route].splice(i, 1);
+                }
+              });
+            }
           }
         }
-      }
 
-      if (options.fixWebpackChunksIssue === "Parcel") {
-        await fixParcelChunksIssue({
-          page,
-          basePath,
-          http2PushManifest,
-          inlineCss: options.inlineCss,
-        });
-      } else if (options.fixWebpackChunksIssue === "CRA2") {
-        await fixWebpackChunksIssue2({
-          page,
-          basePath,
-          http2PushManifest,
-          inlineCss: options.inlineCss,
-        });
-      } else if (options.fixWebpackChunksIssue === "CRA1") {
-        await fixWebpackChunksIssue1({
-          page,
-          basePath,
-          http2PushManifest,
-          inlineCss: options.inlineCss,
-        });
-      }
-      if (options.asyncScriptTags) await asyncScriptTags({ page });
+        if (options.fixWebpackChunksIssue === "Parcel") {
+          await fixParcelChunksIssue({
+            page,
+            basePath,
+            http2PushManifest,
+            inlineCss: options.inlineCss,
+          });
+        } else if (options.fixWebpackChunksIssue === "CRA2") {
+          await fixWebpackChunksIssue2({
+            page,
+            basePath,
+            http2PushManifest,
+            inlineCss: options.inlineCss,
+          });
+        } else if (options.fixWebpackChunksIssue === "CRA1") {
+          await fixWebpackChunksIssue1({
+            page,
+            basePath,
+            http2PushManifest,
+            inlineCss: options.inlineCss,
+          });
+        }
+        if (options.asyncScriptTags) await asyncScriptTags({ page });
 
-      await page.evaluate((ajaxCache) => {
-        const snapEscape = (() => {
-          const UNSAFE_CHARS_REGEXP = /[<>\/\u2028\u2029]/g;
-          // Mapping of unsafe HTML and invalid JavaScript line terminator chars to their
-          // Unicode char counterparts which are safe to use in JavaScript strings.
-          const ESCAPED_CHARS = {
-            "<": "\\u003C",
-            ">": "\\u003E",
-            "/": "\\u002F",
-            "\u2028": "\\u2028",
-            "\u2029": "\\u2029",
-          };
-          const escapeUnsafeChars = (unsafeChar) => ESCAPED_CHARS[unsafeChar];
-          return (str) => str.replace(UNSAFE_CHARS_REGEXP, escapeUnsafeChars);
-        })();
-        // TODO: as of now it only prevents XSS attack,
-        // but can stringify only basic data types
-        // e.g. Date, Set, Map, NaN won't be handled right
-        const snapStringify = (obj) => snapEscape(JSON.stringify(obj));
+        await page.evaluate((ajaxCache) => {
+          const snapEscape = (() => {
+            const UNSAFE_CHARS_REGEXP = /[<>\/\u2028\u2029]/g;
+            // Mapping of unsafe HTML and invalid JavaScript line terminator chars to their
+            // Unicode char counterparts which are safe to use in JavaScript strings.
+            const ESCAPED_CHARS = {
+              "<": "\\u003C",
+              ">": "\\u003E",
+              "/": "\\u002F",
+              "\u2028": "\\u2028",
+              "\u2029": "\\u2029",
+            };
+            const escapeUnsafeChars = (unsafeChar) => ESCAPED_CHARS[unsafeChar];
+            return (str) => str.replace(UNSAFE_CHARS_REGEXP, escapeUnsafeChars);
+          })();
+          // TODO: as of now it only prevents XSS attack,
+          // but can stringify only basic data types
+          // e.g. Date, Set, Map, NaN won't be handled right
+          const snapStringify = (obj) => snapEscape(JSON.stringify(obj));
 
-        let scriptTagText = "";
-        if (ajaxCache && Object.keys(ajaxCache).length > 0) {
-          scriptTagText += `window.snapStore=${snapEscape(
-            JSON.stringify(ajaxCache)
-          )};`;
-        }
-        let state;
-        if (
-          window.snapSaveState &&
-          (state = window.snapSaveState()) &&
-          Object.keys(state).length !== 0
-        ) {
-          scriptTagText += Object.keys(state)
-            .map((key) => `window["${key}"]=${snapStringify(state[key])};`)
-            .join("");
-        }
-        if (scriptTagText !== "") {
-          const scriptTag = document.createElement("script");
-          scriptTag.type = "text/javascript";
-          scriptTag.text = scriptTagText;
-          const firstScript = Array.from(document.scripts)[0];
-          firstScript.parentNode.insertBefore(scriptTag, firstScript);
-        }
-      }, ajaxCache[route]);
-      delete ajaxCache[route];
-      if (options.fixInsertRule) await fixInsertRule({ page });
-      await fixFormFields({ page });
+          let scriptTagText = "";
+          if (ajaxCache && Object.keys(ajaxCache).length > 0) {
+            scriptTagText += `window.snapStore=${snapEscape(
+                JSON.stringify(ajaxCache)
+            )};`;
+          }
+          let state;
+          if (
+              window.snapSaveState &&
+              (state = window.snapSaveState()) &&
+              Object.keys(state).length !== 0
+          ) {
+            scriptTagText += Object.keys(state)
+                .map((key) => `window["${key}"]=${snapStringify(state[key])};`)
+                .join("");
+          }
+          if (scriptTagText !== "") {
+            const scriptTag = document.createElement("script");
+            scriptTag.type = "text/javascript";
+            scriptTag.text = scriptTagText;
+            const firstScript = Array.from(document.scripts)[0];
+            firstScript.parentNode.insertBefore(scriptTag, firstScript);
+          }
+        }, ajaxCache[route]);
+        delete ajaxCache[route];
+        if (options.fixInsertRule) await fixInsertRule({ page });
+        await fixFormFields({ page });
 
-      let routePath = route.replace(publicPath, "");
-      let filePath = path.join(destinationDir, routePath);
-      if (options.saveAs === "html") {
-        await saveAsHtml({ page, filePath, options, route, fs });
-        let newRoute = await page.evaluate(() => location.toString());
-        newPath = normalizePath(
-          newRoute.replace(publicPath, "").replace(basePath, "")
-        );
-        routePath = normalizePath(routePath);
-        if (routePath !== newPath) {
-          console.log(newPath);
-          console.log(`💬  in browser redirect (${newPath})`);
-          addToQueue(newRoute);
+        let routePath = route.replace(publicPath, "");
+        let filePath = path.join(destinationDir, routePath);
+        if (options.saveAs === "html") {
+          await saveAsHtml({ page, filePath, options, route, fs });
+          let newRoute = await page.evaluate(() => location.toString());
+          newPath = normalizePath(
+              newRoute.replace(publicPath, "").replace(basePath, "")
+          );
+          routePath = normalizePath(routePath);
+          if (routePath !== newPath) {
+            console.log(newPath);
+            console.log(`💬  in browser redirect (${newPath})`);
+            addToQueue(newRoute);
+          }
+        } else if (options.saveAs === "png") {
+          await saveAsPng({ page, filePath, options, route, fs });
+        } else if (options.saveAs === "jpeg") {
+          await saveAsJpeg({ page, filePath, options, route, fs });
         }
-      } else if (options.saveAs === "png") {
-        await saveAsPng({ page, filePath, options, route, fs });
-      } else if (options.saveAs === "jpeg") {
-        await saveAsJpeg({ page, filePath, options, route, fs });
+      } finally {
+        if(options.debug){
+          console.timeEnd(`ReactSnap: afterFetch ${route}`)
+        }
       }
     },
     onEnd: () => {
-      if (server) server.close();
-      if (http2PushManifest) {
-        const manifest = Object.keys(http2PushManifestItems).reduce(
-          (accumulator, key) => {
-            if (http2PushManifestItems[key].length !== 0)
-              accumulator.push({
-                source: key,
-                headers: [
-                  {
-                    key: "Link",
-                    value: http2PushManifestItems[key]
-                      .map((x) => `<${x.link}>;rel=preload;as=${x.as}`)
-                      .join(","),
-                  },
-                ],
-              });
-            return accumulator;
-          },
-          []
-        );
-        fs.writeFileSync(
-          `${destinationDir}/http2-push-manifest.json`,
-          JSON.stringify(manifest)
-        );
+      const randomId = Math.random()
+      if(options.debug){
+        console.time(`ReactSnap: onEnd ${randomId}`)
+      }
+      try {
+        if (server) server.close();
+        if (http2PushManifest) {
+          const manifest = Object.keys(http2PushManifestItems).reduce(
+              (accumulator, key) => {
+                if (http2PushManifestItems[key].length !== 0)
+                  accumulator.push({
+                    source: key,
+                    headers: [
+                      {
+                        key: "Link",
+                        value: http2PushManifestItems[key]
+                            .map((x) => `<${x.link}>;rel=preload;as=${x.as}`)
+                            .join(","),
+                      },
+                    ],
+                  });
+                return accumulator;
+              },
+              []
+          );
+          fs.writeFileSync(
+              `${destinationDir}/http2-push-manifest.json`,
+              JSON.stringify(manifest)
+          );
+        }
+      } finally {
+        if(options.debug){
+          console.timeEnd(`ReactSnap: onEnd ${randomId}`)
+        }
       }
     },
   });
