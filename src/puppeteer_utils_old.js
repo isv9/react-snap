@@ -1,6 +1,7 @@
 const puppeteer = require("puppeteer");
 const _ = require("highland");
 const url = require("url");
+const mapStackTrace = require("sourcemapped-stacktrace-node").default;
 const path = require("path");
 const fs = require("fs");
 const { createTracker, augmentTimeoutError } = require("./tracker");
@@ -28,11 +29,11 @@ const skipThirdPartyRequests = async (opt) => {
 };
 
 /**
- * @param {{page: Page, route: string, onError: ?function }} opt
+ * @param {{page: Page, options: {sourceMaps: boolean}, route: string, onError: ?function }} opt
  * @return {void}
  */
 const enableLogging = (opt) => {
-  const { page, options, route, onError } = opt;
+  const { page, options, route, onError, sourcemapStore } = opt;
   page.on("console", (msg) => {
     const text = msg.text();
     if (text === "JSHandle@object") {
@@ -52,7 +53,34 @@ const enableLogging = (opt) => {
     onError && onError();
   });
   page.on("pageerror", (e) => {
-    console.log(`🔥  pageerror at ${route}:`, e);
+    if (options.sourceMaps) {
+      mapStackTrace(e.stack || e.message, {
+        isChromeOrEdge: true,
+        store: sourcemapStore || {},
+      })
+        .then((result) => {
+          // TODO: refactor mapStackTrace: return array not a string, return first row too
+          const stackRows = result.split("\n");
+          const puppeteerLine =
+            stackRows.findIndex((x) => x.includes("puppeteer")) ||
+            stackRows.length - 1;
+
+          console.log(
+            `🔥  pageerror at ${route}: ${
+              (e.stack || e.message).split("\n")[0] + "\n"
+            }${stackRows.slice(0, puppeteerLine).join("\n")}`
+          );
+        })
+        .catch((e2) => {
+          console.log(`🔥  pageerror at ${route}:`, e);
+          console.log(
+            `️️️⚠️  warning at ${route} (error in source maps):`,
+            e2.message
+          );
+        });
+    } else {
+      console.log(`🔥  pageerror at ${route}:`, e);
+    }
     onError && onError();
   });
   page.on("response", (response) => {
@@ -101,14 +129,16 @@ const getLinks = async (opt) => {
 /**
  * can not use null as default for function because of TS error https://github.com/Microsoft/TypeScript/issues/14889
  *
- * @param {{options: *, basePath: string, afterFetch: ?(function({ page: Page, browser: Browser, route: string }):Promise)}} opt
+ * @param {{options: *, basePath: string, beforeFetch: ?(function({ page: Page, route: string }):Promise), afterFetch: ?(function({ page: Page, browser: Browser, route: string }):Promise), onEnd: ?(function():void)}} opt
  * @return {Promise}
  */
 const crawl = async (opt) => {
   const {
     options,
     basePath,
+    beforeFetch,
     afterFetch,
+    onEnd,
     publicPath,
     sourceDir,
   } = opt;
@@ -140,6 +170,7 @@ const crawl = async (opt) => {
   let processed = 0;
   // use Set instead
   const uniqueUrls = new Set();
+  const sourcemapStore = {};
 
   /**
    * @param {string} path
@@ -211,7 +242,9 @@ const crawl = async (opt) => {
           onError: () => {
             shuttingDown = true;
           },
+          sourcemapStore,
         });
+        beforeFetch && beforeFetch({ page, route });
         await page.setUserAgent(options.userAgent);
         const tracker = createTracker(page);
         try {
@@ -265,6 +298,7 @@ const crawl = async (opt) => {
         process.removeListener("SIGINT", onSigint);
         process.removeListener("unhandledRejection", onUnhandledRejection);
         await browser.close();
+        onEnd && onEnd();
         if (shuttingDown) return reject({skipRoutes, crawledRoutes});
         resolve();
       });
