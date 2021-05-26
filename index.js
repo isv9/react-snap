@@ -687,16 +687,17 @@ const run = async (userOptions, { fs } = { fs: nativeFs }) => {
     return Promise.reject("");
   }
 
-  fs.createReadStream(path.join(sourceDir, "index.html")).pipe(
-    fs.createWriteStream(path.join(sourceDir, "200.html"))
-  );
+  // fs.createReadStream(path.join(sourceDir, "index.html")).pipe(
+  //   fs.createWriteStream(path.join(sourceDir, "200.html"))
+  // );
 
   if (destinationDir !== sourceDir && options.saveAs === "html") {
     mkdirp.sync(destinationDir);
-    fs.createReadStream(path.join(sourceDir, "index.html")).pipe(
-      fs.createWriteStream(path.join(destinationDir, "200.html"))
-    );
   }
+
+  fs.createReadStream(path.join(sourceDir, "index.html")).pipe(
+      fs.createWriteStream(path.join(destinationDir, "200.html"))
+  );
 
   if(options.debug){
     console.timeEnd('ReactSnap: checking exist file')
@@ -721,36 +722,27 @@ const run = async (userOptions, { fs } = { fs: nativeFs }) => {
       publicPath,
       sourceDir,
       beforeFetch: async ({ page, route }) => {
-        if(options.debug){
-          console.time(`ReactSnap: beforeFetch ${route}`)
-        }
-        try{
-          const { preloadImages, cacheAjaxRequests, preconnectThirdParty } =
-              options;
-          if (
-              preloadImages ||
-              cacheAjaxRequests ||
-              preconnectThirdParty ||
-              http2PushManifest
-          ) {
-            const { ajaxCache: ac, http2PushManifestItems: hpm } = preloadResources(
-                {
-                  page,
-                  basePath,
-                  preloadImages,
-                  cacheAjaxRequests,
-                  preconnectThirdParty,
-                  http2PushManifest,
-                  ignoreForPreload: options.ignoreForPreload,
-                }
-            );
-            ajaxCache[route] = ac;
-            http2PushManifestItems[route] = hpm;
-          }
-        } finally {
-          if(options.debug){
-            console.timeEnd(`ReactSnap: beforeFetch ${route}`)
-          }
+        const { preloadImages, cacheAjaxRequests, preconnectThirdParty } =
+            options;
+        if (
+            preloadImages ||
+            cacheAjaxRequests ||
+            preconnectThirdParty ||
+            http2PushManifest
+        ) {
+          const { ajaxCache: ac, http2PushManifestItems: hpm } = preloadResources(
+              {
+                page,
+                basePath,
+                preloadImages,
+                cacheAjaxRequests,
+                preconnectThirdParty,
+                http2PushManifest,
+                ignoreForPreload: options.ignoreForPreload,
+              }
+          );
+          ajaxCache[route] = ac;
+          http2PushManifestItems[route] = hpm;
         }
       },
       afterFetch: async ({ page, route, browser, addToQueue }) => {
@@ -904,40 +896,30 @@ const run = async (userOptions, { fs } = { fs: nativeFs }) => {
         }
       },
       onEnd: () => {
-        const randomId = Math.random()
-        if(options.debug){
-          console.time(`ReactSnap: onEnd ${randomId}`)
-        }
-        try {
-          if (server) server.close();
-          if (http2PushManifest) {
-            const manifest = Object.keys(http2PushManifestItems).reduce(
-                (accumulator, key) => {
-                  if (http2PushManifestItems[key].length !== 0)
-                    accumulator.push({
-                      source: key,
-                      headers: [
-                        {
-                          key: "Link",
-                          value: http2PushManifestItems[key]
-                              .map((x) => `<${x.link}>;rel=preload;as=${x.as}`)
-                              .join(","),
-                        },
-                      ],
-                    });
-                  return accumulator;
-                },
-                []
-            );
-            fs.writeFileSync(
-                `${destinationDir}/http2-push-manifest.json`,
-                JSON.stringify(manifest)
-            );
-          }
-        } finally {
-          if(options.debug){
-            console.timeEnd(`ReactSnap: onEnd ${randomId}`)
-          }
+        if (server) server.close();
+        if (http2PushManifest) {
+          const manifest = Object.keys(http2PushManifestItems).reduce(
+              (accumulator, key) => {
+                if (http2PushManifestItems[key].length !== 0)
+                  accumulator.push({
+                    source: key,
+                    headers: [
+                      {
+                        key: "Link",
+                        value: http2PushManifestItems[key]
+                            .map((x) => `<${x.link}>;rel=preload;as=${x.as}`)
+                            .join(","),
+                      },
+                    ],
+                  });
+                return accumulator;
+              },
+              []
+          );
+          fs.writeFileSync(
+              `${destinationDir}/http2-push-manifest.json`,
+              JSON.stringify(manifest)
+          );
         }
       },
     });

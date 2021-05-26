@@ -216,6 +216,7 @@ const crawl = async (opt) => {
    * @returns {Promise<string>}
    */
   const fetchPage = async (pageUrl) => {
+    console.log('ReactSnap: fetchPage', pageUrl)
     const route = pageUrl.replace(basePath, "");
 
     let skipExistingFile = false;
