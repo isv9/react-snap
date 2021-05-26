@@ -30,7 +30,7 @@ const createTracker = (page) => {
  * @returns {string}
  */
 const augmentTimeoutError = (message, tracker) => {
-  if (message.startsWith("Navigation Timeout Exceeded")) {
+  if (message.startsWith("Navigation timeout")) {
     const urls = tracker.urls();
     if (urls.length > 1) {
       message += `\nTracked URLs that have not finished: ${urls.join(", ")}`;

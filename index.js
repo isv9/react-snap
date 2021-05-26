@@ -118,6 +118,7 @@ const defaults = (userOptions) => {
   if (
     options.saveAs !== "html" &&
     options.saveAs !== "png" &&
+    options.saveAs !== "none" &&
     options.saveAs !== "jpeg"
   ) {
     console.log("🔥  saveAs supported values are html, png, and jpeg");
