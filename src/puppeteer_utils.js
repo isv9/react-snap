@@ -185,72 +185,86 @@ const crawl = async (opt) => {
    * @returns {Promise<string>}
    */
   const fetchPage = async (pageUrl) => {
-    console.log('ReactSnap: fetchPage', pageUrl)
-    const route = pageUrl.replace(basePath, "");
-
-    let skipExistingFile = false;
-    const routePath = route.replace(/\//g, path.sep);
-    const { ext } = path.parse(routePath);
-    if (ext !== ".html" && ext !== "") {
-      const filePath = path.join(sourceDir, routePath);
-      skipExistingFile = fs.existsSync(filePath);
+    if(options.debug){
+      console.time(`ReactSnap: fetchPage ${pageUrl}`)
     }
+    try {
+      const route = pageUrl.replace(basePath, "");
 
-    if (!shuttingDown && !skipExistingFile) {
-      try {
-        const page = await browser.newPage();
-        await page._client.send("ServiceWorker.disable");
-        await page.setCacheEnabled(options.puppeteer.cache);
-        if (options.viewport) await page.setViewport(options.viewport);
-        if (options.skipThirdPartyRequests)
-          await skipThirdPartyRequests({ page, options, basePath });
-        enableLogging({
-          page,
-          options,
-          route,
-          onError: () => {
-            shuttingDown = true;
-          },
-        });
-        await page.setUserAgent(options.userAgent);
-        const tracker = createTracker(page);
-        try {
-          await page.goto(pageUrl, { waitUntil: "networkidle0" });
-        } catch (e) {
-          e.message = augmentTimeoutError(e.message, tracker);
-          throw e;
-        } finally {
-          tracker.dispose();
-        }
-        if (options.waitFor) await page.waitFor(options.waitFor);
-        if (options.crawl) {
-          const links = await getLinks({ page });
-          links.forEach(addToQueue);
-        }
-        afterFetch && (await afterFetch({ page, route, browser, addToQueue }));
-        await page.close();
-        crawledRoutes.push(route)
-        console.log(`✅  crawled ${processed + 1} out of ${enqued} (${route})`);
-      } catch (e) {
-        if (!shuttingDown) {
-          console.log(`🔥  error at ${route}`, e);
-        }
-        shuttingDown = true;
+      let skipExistingFile = false;
+      const routePath = route.replace(/\//g, path.sep);
+      const { ext } = path.parse(routePath);
+      if (ext !== ".html" && ext !== "") {
+        const filePath = path.join(sourceDir, routePath);
+        skipExistingFile = fs.existsSync(filePath);
       }
-    } else {
-      skipRoutes.push(route);
-      // this message creates a lot of noise
-      // console.log(`🚧  skipping (${processed + 1}/${enqued}) ${route}`);
-      // TEMP Work around "Cannot write to stream after nil" issue by including an `await` in this `else` branch
-      await Promise.resolve();
-      // console.log(`🚧  skipping (${processed + 1}/${enqued}) ${route}`);
+
+      if (!shuttingDown && !skipExistingFile) {
+        try {
+          const page = await browser.newPage();
+          await page._client.send("ServiceWorker.disable");
+          await page.setCacheEnabled(options.puppeteer.cache);
+          if (options.viewport) await page.setViewport(options.viewport);
+          if (options.skipThirdPartyRequests)
+            await skipThirdPartyRequests({ page, options, basePath });
+          enableLogging({
+            page,
+            options,
+            route,
+            onError: () => {
+              shuttingDown = true;
+            },
+          });
+          await page.setUserAgent(options.userAgent);
+          const tracker = createTracker(page);
+          if(options.debug){
+            console.time(`ReactSnap: page goto ${pageUrl}`)
+          }
+          try {
+            await page.goto(pageUrl, { waitUntil: "networkidle0" });
+          } catch (e) {
+            e.message = augmentTimeoutError(e.message, tracker);
+            throw e;
+          } finally {
+            tracker.dispose();
+            if(options.debug){
+              console.timeEnd(`ReactSnap: page goto ${pageUrl}`)
+            }
+          }
+          if (options.waitFor) await page.waitFor(options.waitFor);
+          if (options.crawl) {
+            const links = await getLinks({ page });
+            links.forEach(addToQueue);
+          }
+          afterFetch && (await afterFetch({ page, route, browser, addToQueue }));
+          await page.close();
+          crawledRoutes.push(route)
+          console.log(`✅  crawled ${processed + 1} out of ${enqued} (${route})`);
+        } catch (e) {
+          if (!shuttingDown) {
+            console.log(`🔥  error at ${route}`, e);
+          }
+          shuttingDown = true;
+        }
+      } else {
+        skipRoutes.push(route);
+        // this message creates a lot of noise
+        // console.log(`🚧  skipping (${processed + 1}/${enqued}) ${route}`);
+        // TEMP Work around "Cannot write to stream after nil" issue by including an `await` in this `else` branch
+        await Promise.resolve();
+        // console.log(`🚧  skipping (${processed + 1}/${enqued}) ${route}`);
+      }
+      processed++;
+      if (enqued === processed) {
+        streamClosed = true;
+        queue.end();
+      }
+      return pageUrl;
+    }finally {
+      if(options.debug){
+        console.timeEnd(`ReactSnap: fetchPage ${pageUrl}`)
+      }
     }
-    processed++;
-    if (enqued === processed) {
-      streamClosed = true;
-      queue.end();
-    }
-    return pageUrl;
   };
 
   if (options.include) {
