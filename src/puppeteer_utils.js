@@ -3,29 +3,11 @@ const _ = require("highland");
 const url = require("url");
 const path = require("path");
 const fs = require("fs");
-const { createTracker, augmentTimeoutError } = require("./tracker");
 
 const errorToString = (jsHandle) =>
   jsHandle.executionContext().evaluate((e) => e.toString(), jsHandle);
 
 const objectToJson = (jsHandle) => jsHandle.jsonValue();
-
-/**
- * @param {{page: Page, options: {skipThirdPartyRequests: true}, basePath: string }} opt
- * @return {Promise<void>}
- */
-const skipThirdPartyRequests = async (opt) => {
-  const { page, options, basePath } = opt;
-  if (!options.skipThirdPartyRequests) return;
-  await page.setRequestInterception(true);
-  page.on("request", (request) => {
-    if (request.url().startsWith(basePath)) {
-      request.continue();
-    } else {
-      request.abort();
-    }
-  });
-};
 
 /**
  * @param {{page: Page, route: string, onError: ?function }} opt
@@ -80,31 +62,6 @@ const enableLogging = (opt) => {
   // page.on("requestfailed", msg =>
   //   console.log(`️️️⚠️  ${route} requestfailed:`, msg)
   // );
-};
-
-/**
- * @param {{page: Page}} opt
- * @return {Promise<Array<string>>}
- */
-const getLinks = async (opt) => {
-  const { page } = opt;
-  const anchors = await page.evaluate(() =>
-    Array.from(document.querySelectorAll("a,link[rel='alternate']")).map(
-      (anchor) => {
-        if (anchor.href.baseVal) {
-          const a = document.createElement("a");
-          a.href = anchor.href.baseVal;
-          return a.href;
-        }
-        return anchor.href;
-      }
-    )
-  );
-
-  const iframes = await page.evaluate(() =>
-    Array.from(document.querySelectorAll("iframe")).map((iframe) => iframe.src)
-  );
-  return anchors.concat(iframes);
 };
 
 const allowRequestTypeList = ["document", "script", "xhr", "fetch"];
@@ -180,9 +137,6 @@ const crawl = async (opt) => {
       uniqueUrls.add(newUrl);
       enqued++;
       queue.write(newUrl);
-      if (enqued == 2 && options.crawl) {
-        addToQueue(`${basePath}${publicPath}/404.html`);
-      }
     }
   };
 
@@ -222,8 +176,6 @@ const crawl = async (opt) => {
           await page._client.send("ServiceWorker.disable");
           await page.setCacheEnabled(options.puppeteer.cache);
           if (options.viewport) await page.setViewport(options.viewport);
-          if (options.skipThirdPartyRequests)
-            await skipThirdPartyRequests({ page, options, basePath });
           enableLogging({
             page,
             options,
@@ -233,25 +185,15 @@ const crawl = async (opt) => {
             },
           });
           await page.setUserAgent(options.userAgent);
-          const tracker = createTracker(page);
           if (options.debug) {
             console.time(`ReactSnap: page goto ${pageUrl}`);
           }
           try {
             await page.goto(pageUrl, { waitUntil: "networkidle0" });
-          } catch (e) {
-            e.message = augmentTimeoutError(e.message, tracker);
-            throw e;
           } finally {
-            tracker.dispose();
             if (options.debug) {
               console.timeEnd(`ReactSnap: page goto ${pageUrl}`);
             }
-          }
-          if (options.waitFor) await page.waitFor(options.waitFor);
-          if (options.crawl) {
-            const links = await getLinks({ page });
-            links.forEach(addToQueue);
           }
           afterFetch &&
             (await afterFetch({ page, route, browser, addToQueue }));
@@ -305,7 +247,5 @@ const crawl = async (opt) => {
   });
 };
 
-exports.skipThirdPartyRequests = skipThirdPartyRequests;
 exports.enableLogging = enableLogging;
-exports.getLinks = getLinks;
 exports.crawl = crawl;
