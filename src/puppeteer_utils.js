@@ -40,10 +40,16 @@ const enableLogging = (opt) => {
         console.log(`💬  console.log at ${route}:`, ...args)
       );
     } else if (text === "JSHandle@error") {
-      Promise.all(msg.args().map(errorToString)).then((args) =>
-        console.log(`💬  console.log at ${route}:`, ...args)
-      );
-    } else if (!text.includes('.woff2')) {
+      Promise.all(msg.args().map(errorToString)).then((args) => {
+        if (args.some((a) => a.includes("Loading CSS chunk"))) {
+          return;
+        }
+        console.log(`💬  console.log at ${route}:`, ...args);
+      });
+    } else if (
+      !text.includes(".woff2") &&
+      text !== "Failed to load resource: net::ERR_FAILED"
+    ) {
       console.log(`️️️💬  console.log at ${route}:`, text);
     }
   });
@@ -52,6 +58,9 @@ const enableLogging = (opt) => {
     onError && onError();
   });
   page.on("pageerror", (e) => {
+    if (e.message.includes("Loading CSS chunk")) {
+      return;
+    }
     console.log(`🔥  pageerror at ${route}:`, e);
     onError && onError();
   });
@@ -98,6 +107,17 @@ const getLinks = async (opt) => {
   return anchors.concat(iframes);
 };
 
+const allowRequestTypeList = ["document", "script", "xhr", "fetch"];
+function onRequest(req) {
+  if (
+    allowRequestTypeList.includes(req.resourceType()) ||
+    (req.resourceType() === "other" && req.url().endsWith("chunk.js"))
+  ) {
+    return req.continue();
+  }
+  return req.abort();
+}
+
 /**
  * can not use null as default for function because of TS error https://github.com/Microsoft/TypeScript/issues/14889
  *
@@ -105,13 +125,7 @@ const getLinks = async (opt) => {
  * @return {Promise}
  */
 const crawl = async (opt) => {
-  const {
-    options,
-    basePath,
-    afterFetch,
-    publicPath,
-    sourceDir,
-  } = opt;
+  const { options, basePath, afterFetch, publicPath, sourceDir } = opt;
   let shuttingDown = false;
   let streamClosed = false;
 
@@ -185,8 +199,8 @@ const crawl = async (opt) => {
    * @returns {Promise<string>}
    */
   const fetchPage = async (pageUrl) => {
-    if(options.debug){
-      console.time(`ReactSnap: fetchPage ${pageUrl}`)
+    if (options.debug) {
+      console.time(`ReactSnap: fetchPage ${pageUrl}`);
     }
     try {
       const route = pageUrl.replace(basePath, "");
@@ -202,6 +216,9 @@ const crawl = async (opt) => {
       if (!shuttingDown && !skipExistingFile) {
         try {
           const page = await browser.newPage();
+          await page.setRequestInterception(true);
+          page.on("request", onRequest);
+
           await page._client.send("ServiceWorker.disable");
           await page.setCacheEnabled(options.puppeteer.cache);
           if (options.viewport) await page.setViewport(options.viewport);
@@ -217,8 +234,8 @@ const crawl = async (opt) => {
           });
           await page.setUserAgent(options.userAgent);
           const tracker = createTracker(page);
-          if(options.debug){
-            console.time(`ReactSnap: page goto ${pageUrl}`)
+          if (options.debug) {
+            console.time(`ReactSnap: page goto ${pageUrl}`);
           }
           try {
             await page.goto(pageUrl, { waitUntil: "networkidle0" });
@@ -227,8 +244,8 @@ const crawl = async (opt) => {
             throw e;
           } finally {
             tracker.dispose();
-            if(options.debug){
-              console.timeEnd(`ReactSnap: page goto ${pageUrl}`)
+            if (options.debug) {
+              console.timeEnd(`ReactSnap: page goto ${pageUrl}`);
             }
           }
           if (options.waitFor) await page.waitFor(options.waitFor);
@@ -236,10 +253,13 @@ const crawl = async (opt) => {
             const links = await getLinks({ page });
             links.forEach(addToQueue);
           }
-          afterFetch && (await afterFetch({ page, route, browser, addToQueue }));
+          afterFetch &&
+            (await afterFetch({ page, route, browser, addToQueue }));
           await page.close();
-          crawledRoutes.push(route)
-          console.log(`✅  crawled ${processed + 1} out of ${enqued} (${route})`);
+          crawledRoutes.push(route);
+          console.log(
+            `✅  crawled ${processed + 1} out of ${enqued} (${route})`
+          );
         } catch (e) {
           if (!shuttingDown) {
             console.log(`🔥  error at ${route}`, e);
@@ -260,9 +280,9 @@ const crawl = async (opt) => {
         queue.end();
       }
       return pageUrl;
-    }finally {
-      if(options.debug){
-        console.timeEnd(`ReactSnap: fetchPage ${pageUrl}`)
+    } finally {
+      if (options.debug) {
+        console.timeEnd(`ReactSnap: fetchPage ${pageUrl}`);
       }
     }
   };
@@ -279,7 +299,7 @@ const crawl = async (opt) => {
         process.removeListener("SIGINT", onSigint);
         process.removeListener("unhandledRejection", onUnhandledRejection);
         await browser.close();
-        if (shuttingDown) return reject({skipRoutes, crawledRoutes});
+        if (shuttingDown) return reject({ skipRoutes, crawledRoutes });
         resolve();
       });
   });

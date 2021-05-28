@@ -44,7 +44,7 @@ const enableLogging = (opt) => {
       Promise.all(msg.args().map(errorToString)).then((args) =>
         console.log(`💬  console.log at ${route}:`, ...args)
       );
-    } else if (!text.includes('.woff2')) {
+    } else if (!text.includes(".woff2")) {
       console.log(`️️️💬  console.log at ${route}:`, text);
     }
   });
@@ -216,7 +216,7 @@ const crawl = async (opt) => {
    * @returns {Promise<string>}
    */
   const fetchPage = async (pageUrl) => {
-    console.log('ReactSnap: fetchPage', pageUrl)
+    console.log("ReactSnap: fetchPage", pageUrl);
     const route = pageUrl.replace(basePath, "");
 
     let skipExistingFile = false;
@@ -262,7 +262,7 @@ const crawl = async (opt) => {
         }
         afterFetch && (await afterFetch({ page, route, browser, addToQueue }));
         await page.close();
-        crawledRoutes.push(route)
+        crawledRoutes.push(route);
         console.log(`✅  crawled ${processed + 1} out of ${enqued} (${route})`);
       } catch (e) {
         if (!shuttingDown) {
@@ -299,7 +299,7 @@ const crawl = async (opt) => {
         process.removeListener("unhandledRejection", onUnhandledRejection);
         await browser.close();
         onEnd && onEnd();
-        if (shuttingDown) return reject({skipRoutes, crawledRoutes});
+        if (shuttingDown) return reject({ skipRoutes, crawledRoutes });
         resolve();
       });
   });
