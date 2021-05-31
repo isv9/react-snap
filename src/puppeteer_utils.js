@@ -64,7 +64,13 @@ const enableLogging = (opt) => {
   // );
 };
 
-const allowRequestTypeList = ["document", "script", "xhr", "fetch"];
+const allowRequestTypeList = [
+  "document",
+  "script",
+  "xhr",
+  "fetch",
+  "stylesheet",
+];
 function onRequest(req) {
   if (
     allowRequestTypeList.includes(req.resourceType()) ||
