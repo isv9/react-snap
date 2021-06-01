@@ -210,6 +210,7 @@ const crawl = async (opt) => {
             failPaths.push(route);
           }
         } catch (e) {
+          failPaths.push(route);
           if (!shuttingDown) {
             console.log(`🔥  error at ${route}`, e);
           }
@@ -248,13 +249,8 @@ const crawl = async (opt) => {
         process.removeListener("SIGINT", onSigint);
         process.removeListener("unhandledRejection", onUnhandledRejection);
         await browser.close();
-        if (shuttingDown) {
-          reject({ skipRoutes, crawledRoutes, failPaths });
-          skipRoutes.length = 0;
-          crawledRoutes.length = 0;
-          failPaths.length = 0;
-          return;
-        }
+        if (shuttingDown)
+          return reject({ skipRoutes, crawledRoutes, failPaths });
         resolve();
       });
   });
