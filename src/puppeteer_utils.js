@@ -106,7 +106,7 @@ const crawl = async (opt) => {
 
   const skipRoutes = [];
   const crawledRoutes = [];
-  const failPaths = [];
+  const failRoutes = [];
   const queue = _();
   let enqued = 0;
   let processed = 0;
@@ -207,10 +207,10 @@ const crawl = async (opt) => {
               `✅  crawled ${processed + 1} out of ${enqued} (${route})`
             );
           } else {
-            failPaths.push(route);
+            failRoutes.push(route);
           }
         } catch (e) {
-          failPaths.push(route);
+          failRoutes.push(route);
           if (!shuttingDown) {
             console.log(`🔥  error at ${route}`, e);
           }
@@ -250,7 +250,7 @@ const crawl = async (opt) => {
         process.removeListener("unhandledRejection", onUnhandledRejection);
         await browser.close();
         if (shuttingDown)
-          return reject({ skipRoutes, crawledRoutes, failPaths });
+          return reject({ skipRoutes, crawledRoutes, failRoutes });
         resolve();
       });
   });
