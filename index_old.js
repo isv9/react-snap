@@ -1,3 +1,4 @@
+/*
 const crawl = require("./src/puppeteer_utils.js").crawl;
 const http = require("http");
 const express = require("express");
@@ -78,11 +79,11 @@ const defaultOptions = {
   removeScriptTags: false,
 };
 
-/**
+/!**
  *
  * @param {{source: ?string, destination: ?string, include: ?Array<string>, sourceMaps: ?boolean, skipThirdPartyRequests: ?boolean }} userOptions
  * @return {*}
- */
+ *!/
 const defaults = (userOptions) => {
   const options = {
     ...defaultOptions,
@@ -142,10 +143,10 @@ const defaults = (userOptions) => {
 
 const normalizePath = (path) => (path === "/" ? "/" : path.replace(/\/$/, ""));
 
-/**
+/!**
  *
  * @param {{page: Page, basePath: string}} opt
- */
+ *!/
 const preloadResources = (opt) => {
   const {
     page,
@@ -237,11 +238,11 @@ const preloadPolyfill = nativeFs.readFileSync(
   "utf8"
 );
 
-/**
+/!**
  *
  * @param {{page: Page}} opt
  * @return Promise
- */
+ *!/
 const removeBlobs = async (opt) => {
   const { page } = opt;
   return page.evaluate(() => {
@@ -256,10 +257,10 @@ const removeBlobs = async (opt) => {
   });
 };
 
-/**
+/!**
  * @param {{page: Page, pageUrl: string, options: {skipThirdPartyRequests: boolean, userAgent: string}, basePath: string, browser: Browser}} opt
  * @return {Promise}
- */
+ *!/
 const inlineCss = async (opt) => {
   const { page, pageUrl, options, basePath, browser } = opt;
 
@@ -933,3 +934,4 @@ const run = async (userOptions, { fs } = { fs: nativeFs }) => {
 
 exports.defaultOptions = defaultOptions;
 exports.run = run;
+*/

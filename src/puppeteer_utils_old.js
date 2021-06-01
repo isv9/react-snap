@@ -1,3 +1,4 @@
+/*
 const puppeteer = require("puppeteer");
 const _ = require("highland");
 const url = require("url");
@@ -11,10 +12,10 @@ const errorToString = (jsHandle) =>
 
 const objectToJson = (jsHandle) => jsHandle.jsonValue();
 
-/**
+/!**
  * @param {{page: Page, options: {skipThirdPartyRequests: true}, basePath: string }} opt
  * @return {Promise<void>}
- */
+ *!/
 const skipThirdPartyRequests = async (opt) => {
   const { page, options, basePath } = opt;
   if (!options.skipThirdPartyRequests) return;
@@ -28,10 +29,10 @@ const skipThirdPartyRequests = async (opt) => {
   });
 };
 
-/**
+/!**
  * @param {{page: Page, options: {sourceMaps: boolean}, route: string, onError: ?function }} opt
  * @return {void}
- */
+ *!/
 const enableLogging = (opt) => {
   const { page, options, route, onError, sourcemapStore } = opt;
   page.on("console", (msg) => {
@@ -101,10 +102,10 @@ const enableLogging = (opt) => {
   // );
 };
 
-/**
+/!**
  * @param {{page: Page}} opt
  * @return {Promise<Array<string>>}
- */
+ *!/
 const getLinks = async (opt) => {
   const { page } = opt;
   const anchors = await page.evaluate(() =>
@@ -126,12 +127,12 @@ const getLinks = async (opt) => {
   return anchors.concat(iframes);
 };
 
-/**
+/!**
  * can not use null as default for function because of TS error https://github.com/Microsoft/TypeScript/issues/14889
  *
  * @param {{options: *, basePath: string, beforeFetch: ?(function({ page: Page, route: string }):Promise), afterFetch: ?(function({ page: Page, browser: Browser, route: string }):Promise), onEnd: ?(function():void)}} opt
  * @return {Promise}
- */
+ *!/
 const crawl = async (opt) => {
   const {
     options,
@@ -172,10 +173,10 @@ const crawl = async (opt) => {
   const uniqueUrls = new Set();
   const sourcemapStore = {};
 
-  /**
+  /!**
    * @param {string} path
    * @returns {void}
-   */
+   *!/
   const addToQueue = (newUrl) => {
     const { hostname, search, hash, port } = url.parse(newUrl);
     newUrl = newUrl.replace(`${search || ""}${hash || ""}`, "");
@@ -211,10 +212,10 @@ const crawl = async (opt) => {
     handleSIGINT: false,
   });
 
-  /**
+  /!**
    * @param {string} pageUrl
    * @returns {Promise<string>}
-   */
+   *!/
   const fetchPage = async (pageUrl) => {
     console.log("ReactSnap: fetchPage", pageUrl);
     const route = pageUrl.replace(basePath, "");
@@ -309,3 +310,4 @@ exports.skipThirdPartyRequests = skipThirdPartyRequests;
 exports.enableLogging = enableLogging;
 exports.getLinks = getLinks;
 exports.crawl = crawl;
+*/

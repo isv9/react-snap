@@ -23,9 +23,6 @@ const enableLogging = (opt) => {
       );
     } else if (text === "JSHandle@error") {
       Promise.all(msg.args().map(errorToString)).then((args) => {
-        if (args.some((a) => a.includes("Loading CSS chunk"))) {
-          return;
-        }
         console.log(`💬  console.log at ${route}:`, ...args);
       });
     } else if (
@@ -40,9 +37,6 @@ const enableLogging = (opt) => {
     onError && onError();
   });
   page.on("pageerror", (e) => {
-    if (e.message.includes("Loading CSS chunk")) {
-      return;
-    }
     console.log(`🔥  pageerror at ${route}:`, e);
     onError && onError();
   });
@@ -112,6 +106,7 @@ const crawl = async (opt) => {
 
   const skipRoutes = [];
   const crawledRoutes = [];
+  const failPaths = [];
   const queue = _();
   let enqued = 0;
   let processed = 0;
@@ -182,11 +177,13 @@ const crawl = async (opt) => {
           await page._client.send("ServiceWorker.disable");
           await page.setCacheEnabled(options.puppeteer.cache);
           if (options.viewport) await page.setViewport(options.viewport);
+          let isError = false;
           enableLogging({
             page,
             options,
             route,
             onError: () => {
+              isError = true;
               shuttingDown = true;
             },
           });
@@ -204,10 +201,14 @@ const crawl = async (opt) => {
           afterFetch &&
             (await afterFetch({ page, route, browser, addToQueue }));
           await page.close();
-          crawledRoutes.push(route);
-          console.log(
-            `✅  crawled ${processed + 1} out of ${enqued} (${route})`
-          );
+          if (!isError) {
+            crawledRoutes.push(route);
+            console.log(
+              `✅  crawled ${processed + 1} out of ${enqued} (${route})`
+            );
+          } else {
+            failPaths.push(route);
+          }
         } catch (e) {
           if (!shuttingDown) {
             console.log(`🔥  error at ${route}`, e);
@@ -247,7 +248,13 @@ const crawl = async (opt) => {
         process.removeListener("SIGINT", onSigint);
         process.removeListener("unhandledRejection", onUnhandledRejection);
         await browser.close();
-        if (shuttingDown) return reject({ skipRoutes, crawledRoutes });
+        if (shuttingDown) {
+          reject({ skipRoutes, crawledRoutes, failPaths });
+          skipRoutes.length = 0;
+          crawledRoutes.length = 0;
+          failPaths.length = 0;
+          return;
+        }
         resolve();
       });
   });
