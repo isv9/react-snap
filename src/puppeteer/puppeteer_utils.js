@@ -1,4 +1,5 @@
 const puppeteer = require("puppeteer");
+const loggerModule = require("../logger.js");
 const _ = require("highland");
 const url = require("url");
 const path = require("path");
@@ -14,30 +15,30 @@ const objectToJson = (jsHandle) => jsHandle.jsonValue();
  * @return {void}
  */
 const enableLogging = (opt) => {
-  const { page, options, route, onError } = opt;
+  const { page, logger, options, route, onError } = opt;
   page.on("console", (msg) => {
     const text = msg.text();
     if (text === "JSHandle@object") {
       Promise.all(msg.args().map(objectToJson)).then((args) =>
-        console.log(`💬  console.log at ${route}:`, ...args)
+        logger.log(`💬  console.log at ${route}:`, ...args)
       );
     } else if (text === "JSHandle@error") {
       Promise.all(msg.args().map(errorToString)).then((args) => {
-        console.log(`💬  console.log at ${route}:`, ...args);
+        logger.log(`💬  console.log at ${route}:`, ...args);
       });
     } else if (
       !text.includes(".woff2") &&
       text !== "Failed to load resource: net::ERR_FAILED"
     ) {
-      console.log(`️️️💬  console.log at ${route}:`, text);
+      logger.log(`️️️💬  console.log at ${route}:`, text);
     }
   });
   page.on("error", (msg) => {
-    console.log(`🔥  error at ${route}:`, msg);
+    logger.log(`🔥  error at ${route}:`, msg);
     onError && onError();
   });
   page.on("pageerror", (e) => {
-    console.log(`🔥  pageerror at ${route}:`, e);
+    logger.log(`🔥  pageerror at ${route}:`, e);
     onError && onError();
   });
   page.on("response", (response) => {
@@ -48,13 +49,13 @@ const enableLogging = (opt) => {
           .headers()
           .referer.replace(`http://localhost:${options.port}`, "");
       } catch (e) {}
-      console.log(
+      logger.log(
         `️️️⚠️  warning at ${route}: got ${response.status()} HTTP code for ${response.url()}`
       );
     }
   });
   // page.on("requestfailed", msg =>
-  //   console.log(`️️️⚠️  ${route} requestfailed:`, msg)
+  //   logger.log(`️️️⚠️  ${route} requestfailed:`, msg)
   // );
 };
 
@@ -82,7 +83,9 @@ function onRequest(req) {
  * @return {Promise}
  */
 const crawl = async (opt) => {
-  const { options, basePath, afterFetch, publicPath, sourceDir } = opt;
+  const { options, basePath, afterFetch, sourceDir } = opt;
+  const logger = loggerModule.createLogger(options);
+
   let shuttingDown = false;
   let streamClosed = false;
 
@@ -91,7 +94,7 @@ const crawl = async (opt) => {
       process.exit(1);
     } else {
       shuttingDown = true;
-      console.log(
+      logger.log(
         "\nGracefully shutting down. To exit immediately, press ^C again"
       );
     }
@@ -99,7 +102,7 @@ const crawl = async (opt) => {
   process.on("SIGINT", onSigint);
 
   const onUnhandledRejection = (error) => {
-    console.log("🔥  UnhandledPromiseRejectionWarning", error);
+    logger.log("🔥  UnhandledPromiseRejectionWarning", error);
     shuttingDown = true;
   };
   process.on("unhandledRejection", onUnhandledRejection);
@@ -147,6 +150,7 @@ const crawl = async (opt) => {
     executablePath: options.puppeteerExecutablePath,
     ignoreHTTPSErrors: options.puppeteerIgnoreHTTPSErrors,
     handleSIGINT: false,
+    waitForInitialPage: options.waitForInitialPage,
   });
 
   /**
@@ -179,6 +183,7 @@ const crawl = async (opt) => {
           if (options.viewport) await page.setViewport(options.viewport);
           let isError = false;
           enableLogging({
+            logger,
             page,
             options,
             route,
@@ -203,7 +208,7 @@ const crawl = async (opt) => {
           await page.close();
           if (!isError) {
             crawledRoutes.push(route);
-            console.log(
+            logger.log(
               `✅  crawled ${processed + 1} out of ${enqued} (${route})`
             );
           } else {
@@ -212,17 +217,17 @@ const crawl = async (opt) => {
         } catch (e) {
           failRoutes.push(route);
           if (!shuttingDown) {
-            console.log(`🔥  error at ${route}`, e);
+            logger.log(`🔥  error at ${route}`, e);
           }
           shuttingDown = true;
         }
       } else {
         skipRoutes.push(route);
         // this message creates a lot of noise
-        // console.log(`🚧  skipping (${processed + 1}/${enqued}) ${route}`);
+        // logger.log(`🚧  skipping (${processed + 1}/${enqued}) ${route}`);
         // TEMP Work around "Cannot write to stream after nil" issue by including an `await` in this `else` branch
         await Promise.resolve();
-        // console.log(`🚧  skipping (${processed + 1}/${enqued}) ${route}`);
+        // logger.log(`🚧  skipping (${processed + 1}/${enqued}) ${route}`);
       }
       processed++;
       if (enqued === processed) {
