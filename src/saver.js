@@ -3,15 +3,11 @@ const mkdirp = require("mkdirp");
 const minify = require("html-minifier").minify;
 
 const saver = {
-  htmlString: async ({ page, options }) => {
-    let content = await page.content();
-    content = content.replace(/react-snap-onload/g, "onload");
-    return options.minifyHtml ? minify(content, options.minifyHtml) : content;
-  },
+  htmlString,
   html: async (props) => {
     let { page, filePath, route, fs } = props;
     const title = await page.title();
-    const content = await this.htmlString(props);
+    const content = await htmlString(props);
     filePath = filePath.replace(/\//g, path.sep);
     if (route.endsWith(".html")) {
       if (route.endsWith("/404.html") && !title.includes("404"))
@@ -28,5 +24,11 @@ const saver = {
     }
   },
 };
+
+async function htmlString({ page, options }) {
+  let content = await page.content();
+  content = content.replace(/react-snap-onload/g, "onload");
+  return options.minifyHtml ? minify(content, options.minifyHtml) : content;
+}
 
 exports.saver = saver;
