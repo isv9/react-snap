@@ -2,8 +2,6 @@ const puppeteer = require("puppeteer");
 const loggerModule = require("../logger.js");
 const _ = require("highland");
 const url = require("url");
-const path = require("path");
-const fs = require("fs");
 
 const errorToString = (jsHandle) =>
   jsHandle.executionContext().evaluate((e) => e.toString(), jsHandle);
@@ -158,19 +156,12 @@ const crawl = async (opt) => {
    * @returns {Promise<string>}
    */
   const fetchPage = async (pageUrl) => {
-    if (options.debug) {
-      console.time(`ReactSnap: fetchPage ${pageUrl}`);
-    }
+    logger.time(`ReactSnap: fetchPage ${pageUrl}`);
+
     try {
       const route = pageUrl.replace(basePath, "");
 
       let skipExistingFile = false;
-      const routePath = route.replace(/\//g, path.sep);
-      const { ext } = path.parse(routePath);
-      if (ext !== ".html" && ext !== "") {
-        const filePath = path.join(sourceDir, routePath);
-        skipExistingFile = fs.existsSync(filePath);
-      }
 
       if (!shuttingDown && !skipExistingFile) {
         try {
@@ -193,15 +184,13 @@ const crawl = async (opt) => {
             },
           });
           await page.setUserAgent(options.userAgent);
-          if (options.debug) {
-            console.time(`ReactSnap: page goto ${pageUrl}`);
-          }
+
+          logger.time(`ReactSnap: page goto ${pageUrl}`);
+
           try {
             await page.goto(pageUrl, { waitUntil: "networkidle0" });
           } finally {
-            if (options.debug) {
-              console.timeEnd(`ReactSnap: page goto ${pageUrl}`);
-            }
+            logger.timeEnd(`ReactSnap: page goto ${pageUrl}`);
           }
           afterFetch &&
             (await afterFetch({ page, route, browser, addToQueue }));
@@ -234,11 +223,12 @@ const crawl = async (opt) => {
         streamClosed = true;
         queue.end();
       }
+
+      logger.timeEnd(`ReactSnap: fetchPage ${pageUrl}`);
+
       return pageUrl;
-    } finally {
-      if (options.debug) {
-        console.timeEnd(`ReactSnap: fetchPage ${pageUrl}`);
-      }
+    } catch {
+      logger.timeEnd(`ReactSnap: fetchPage ${pageUrl}`);
     }
   };
 

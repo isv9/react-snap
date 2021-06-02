@@ -13,6 +13,7 @@ const defaultOptions = {
   waitForInitialPage: true,
   puppeteer: {
     cache: true,
+    browser: null,
   },
   puppeteerArgs: [],
   puppeteerExecutablePath: undefined,

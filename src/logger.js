@@ -10,8 +10,8 @@ function createLogger(userOptions) {
         console.timeEnd(label);
       }
     },
-    log(message) {
-      console.log(`${this.timestamp}: ${message}`);
+    log(...messages) {
+      console.log(`${this.timestamp}: `, ...messages);
     },
     get timestamp() {
       const date = new Date();
@@ -19,7 +19,9 @@ function createLogger(userOptions) {
       const month = (date.getMonth() + 1).toString().padStart(2, "0");
       const minutes = date.getMinutes().toString().padStart(2, "0");
       const hours = date.getHours().toString().padStart(2, "0");
-      return `[${day}-${month}-${date.getFullYear()} ${hours}:${minutes}]`;
+      const second = date.getSeconds().toString().padStart(2, "0");
+      const millisecond = date.getMilliseconds().toString().padStart(2, "0");
+      return `[${day}-${month}-${date.getFullYear()} ${hours}:${minutes}:${second}:${millisecond}]`;
     },
   };
 }
