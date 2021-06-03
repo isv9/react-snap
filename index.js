@@ -61,7 +61,7 @@ const run = async (userOptions, { fs } = { fs: nativeFs }) => {
   logger.time(`ReactSnap: crawl ${crawlRandomId}`);
 
   try {
-    await crawl({
+    return await crawl({
       options,
       basePath,
       publicPath,
