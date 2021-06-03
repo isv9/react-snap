@@ -81,7 +81,7 @@ function onRequest(req) {
  * @return {Promise}
  */
 const crawl = async (opt) => {
-  const { options, basePath, afterFetch, sourceDir } = opt;
+  const { options, basePath, afterFetch } = opt;
   const logger = loggerModule.createLogger(options);
 
   let shuttingDown = false;
@@ -108,6 +108,7 @@ const crawl = async (opt) => {
   const skipRoutes = [];
   const crawledRoutes = [];
   const failRoutes = [];
+  const renderResult = {};
   const queue = _();
   let enqued = 0;
   let processed = 0;
@@ -142,14 +143,16 @@ const crawl = async (opt) => {
     }
   };
 
-  const browser = await puppeteer.launch({
-    headless: options.headless,
-    args: options.puppeteerArgs,
-    executablePath: options.puppeteerExecutablePath,
-    ignoreHTTPSErrors: options.puppeteerIgnoreHTTPSErrors,
-    handleSIGINT: false,
-    waitForInitialPage: options.waitForInitialPage,
-  });
+  const browser =
+    options.puppeteer.browser ||
+    (await puppeteer.launch({
+      headless: options.headless,
+      args: options.puppeteerArgs,
+      executablePath: options.puppeteerExecutablePath,
+      ignoreHTTPSErrors: options.puppeteerIgnoreHTTPSErrors,
+      handleSIGINT: false,
+      waitForInitialPage: options.waitForInitialPage,
+    }));
 
   /**
    * @param {string} pageUrl
@@ -165,7 +168,9 @@ const crawl = async (opt) => {
 
       if (!shuttingDown && !skipExistingFile) {
         try {
+          logger.time(`ReactSnap: create page ${pageUrl}`);
           const page = await browser.newPage();
+          logger.timeEnd(`ReactSnap: create page ${pageUrl}`);
           await page.setRequestInterception(true);
           page.on("request", onRequest);
 
@@ -193,7 +198,13 @@ const crawl = async (opt) => {
             logger.timeEnd(`ReactSnap: page goto ${pageUrl}`);
           }
           afterFetch &&
-            (await afterFetch({ page, route, browser, addToQueue }));
+            (await afterFetch({
+              page,
+              route,
+              saveResult: (result) => {
+                renderResult[route] = result;
+              },
+            }));
           await page.close();
           if (!isError) {
             crawledRoutes.push(route);
@@ -243,10 +254,13 @@ const crawl = async (opt) => {
       .toArray(async () => {
         process.removeListener("SIGINT", onSigint);
         process.removeListener("unhandledRejection", onUnhandledRejection);
-        await browser.close();
-        if (shuttingDown)
+        if (!options.puppeteer.browser) {
+          await browser.close();
+        }
+        if (shuttingDown) {
           return reject({ skipRoutes, crawledRoutes, failRoutes });
-        resolve();
+        }
+        resolve(renderResult);
       });
   });
 };

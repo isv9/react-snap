@@ -66,7 +66,7 @@ const run = async (userOptions, { fs } = { fs: nativeFs }) => {
       basePath,
       publicPath,
       sourceDir,
-      afterFetch: async ({ page, route }) => {
+      afterFetch: async ({ page, route, saveResult }) => {
         logger.time(`ReactSnap: afterFetch ${route}`);
 
         try {
@@ -127,13 +127,16 @@ const run = async (userOptions, { fs } = { fs: nativeFs }) => {
           logger.time(`ReactSnap: saving as ${route}`);
 
           try {
-            await saver[options.saveAs]?.({
+            const result = await saver[options.saveAs]?.({
               page,
               filePath,
               options,
               route,
               fs,
             });
+            if (result) {
+              saveResult(result);
+            }
           } finally {
             logger.timeEnd(`ReactSnap: saving as ${route}`);
           }
