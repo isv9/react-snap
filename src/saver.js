@@ -27,7 +27,6 @@ const saver = {
 
 async function htmlString({ page, options }) {
   let content = await page.content();
-  content = content.replace(/react-snap-onload/g, "onload");
   return options.minifyHtml ? minify(content, options.minifyHtml) : content;
 }
 
