@@ -191,18 +191,22 @@ const crawl = async (opt) => {
           await page.setUserAgent(options.userAgent);
 
           logger.time(`ReactSnap: page goto ${pageUrl}`);
-          const waitForSelector = options.waitForSelector;
+          const waitForSelectors = options.waitForSelectors;
           try {
             await page.goto(pageUrl, {
-              waitUntil: waitForSelector ? "load" : "networkidle0",
+              waitUntil: waitForSelectors ? "load" : "networkidle0",
             });
           } finally {
             logger.timeEnd(`ReactSnap: page goto ${pageUrl}`);
           }
-          if (waitForSelector) {
-            await page.waitForSelector(
-              waitForSelector.selector,
-              waitForSelector.options
+          if (waitForSelectors) {
+            await Promise.all(
+              waitForSelectors.map((waitForSelector) =>
+                page.waitForSelector(
+                  waitForSelector.selector,
+                  waitForSelector.options
+                )
+              )
             );
           }
           afterFetch &&
